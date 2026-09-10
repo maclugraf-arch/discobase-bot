@@ -1,0 +1,73 @@
+<!--
+  DiscoBase "now watching" widget.
+
+  Wklej ten cały blok do edytora B12 w sekcji custom code / embed HTML na
+  landing page. Pokazuje aktywne pokoje z youtube-listen-together na żywo
+  (lista aktualizuje się sama, bez odświeżania strony).
+
+  Nic tu nie trzeba zmieniać, jeśli zostawiłeś domyślny URL bota z Render.
+-->
+<div id="discobase-rooms" style="font-family: system-ui, sans-serif; max-width: 720px; margin: 0 auto;">
+  <p id="discobase-empty" style="opacity: .6;">Nikt teraz nie ogl&#261;da razem... jeszcze.</p>
+  <div id="discobase-list" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 16px;"></div>
+</div>
+
+<script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
+<script>
+(function () {
+  var API_BASE = 'https://discobase-bot.onrender.com';
+  var TABLE = 'rooms';
+
+  var listEl = document.getElementById('discobase-list');
+  var emptyEl = document.getElementById('discobase-empty');
+  var rooms = {}; // key -> record
+
+  function render() {
+    var keys = Object.keys(rooms);
+    emptyEl.style.display = keys.length ? 'none' : 'block';
+    listEl.innerHTML = keys.map(function (key) {
+      var r = rooms[key].data;
+      var thumb = r.videoId
+        ? 'https://img.youtube.com/vi/' + r.videoId + '/mqdefault.jpg'
+        : '';
+      var statusLabel = r.playing ? '&#9654; Gra teraz' : '&#10074;&#10074; Pauza';
+      return (
+        '<a href="' + (r.joinUrl || '#') + '" target="_blank" rel="noopener" style="' +
+          'display:block;text-decoration:none;color:inherit;border:1px solid rgba(0,0,0,.1);' +
+          'border-radius:12px;overflow:hidden;background:rgba(0,0,0,.03);transition:transform .15s;' +
+        '" onmouseover="this.style.transform=\'scale(1.02)\'" onmouseout="this.style.transform=\'scale(1)\'">' +
+          (thumb ? '<img src="' + thumb + '" alt="" style="width:100%;display:block;aspect-ratio:16/9;object-fit:cover;">' : '') +
+          '<div style="padding:10px 12px;">' +
+            '<div style="font-weight:600;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">' +
+              (r.title || 'Bez tytu&#322;u') +
+            '</div>' +
+            '<div style="font-size:12px;opacity:.7;margin-top:4px;">' +
+              statusLabel + ' &middot; ' + r.members + ' ' + (r.members === 1 ? 'osoba' : 'osoby') +
+            '</div>' +
+          '</div>' +
+        '</a>'
+      );
+    }).join('');
+  }
+
+  fetch(API_BASE + '/api/' + TABLE)
+    .then(function (res) { return res.json(); })
+    .then(function (records) {
+      records.forEach(function (r) { rooms[r.key] = r; });
+      render();
+    })
+    .catch(function () { /* strona i tak działa, po prostu widget zacznie się od pustej listy */ });
+
+  var socket = io(API_BASE);
+  socket.emit('subscribe', TABLE);
+  socket.on('change', function (evt) {
+    if (evt.table !== TABLE) return;
+    if (evt.action === 'delete') {
+      delete rooms[evt.key];
+    } else {
+      rooms[evt.key] = evt.record;
+    }
+    render();
+  });
+})();
+</script>
