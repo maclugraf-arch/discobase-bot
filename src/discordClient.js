@@ -112,19 +112,23 @@ class DiscoBase extends EventEmitter {
     return record;
   }
 
-  getRecord(table, key) {
+  // Reads/deletes must ensure (and hydrate) the table channel first: on a fresh
+  // deploy the local index is empty, but the real data is still safely on Discord.
+  async getRecord(table, key) {
+    await this.ensureTableChannel(table);
     return store.getRecord(table, key);
   }
 
-  listRecords(table) {
+  async listRecords(table) {
+    await this.ensureTableChannel(table);
     return store.listRecords(table);
   }
 
   async deleteRecord(table, key) {
+    const channel = await this.ensureTableChannel(table);
     const existing = store.getRecord(table, key);
     if (!existing) return false;
 
-    const channel = await this.ensureTableChannel(table);
     const message = await channel.messages.fetch(existing.messageId).catch(() => null);
     if (message) await message.delete().catch(() => null);
     store.deleteRecord(table, key);

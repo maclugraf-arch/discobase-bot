@@ -11,14 +11,22 @@ function createApp(disco, { apiKey, corsOrigin }) {
   app.get('/health', (req, res) => res.json({ ok: true }));
 
   // Reads are public so the B12 landing page can fetch data straight from the browser.
-  app.get('/api/:table', (req, res) => {
-    res.json(disco.listRecords(req.params.table));
+  app.get('/api/:table', async (req, res, next) => {
+    try {
+      res.json(await disco.listRecords(req.params.table));
+    } catch (err) {
+      next(err);
+    }
   });
 
-  app.get('/api/:table/:key', (req, res) => {
-    const record = disco.getRecord(req.params.table, req.params.key);
-    if (!record) return res.status(404).json({ error: 'not found' });
-    res.json(record);
+  app.get('/api/:table/:key', async (req, res, next) => {
+    try {
+      const record = await disco.getRecord(req.params.table, req.params.key);
+      if (!record) return res.status(404).json({ error: 'not found' });
+      res.json(record);
+    } catch (err) {
+      next(err);
+    }
   });
 
   function requireApiKey(req, res, next) {
@@ -39,7 +47,7 @@ function createApp(disco, { apiKey, corsOrigin }) {
 
   app.patch('/api/:table/:key', requireApiKey, async (req, res, next) => {
     try {
-      const existing = disco.getRecord(req.params.table, req.params.key);
+      const existing = await disco.getRecord(req.params.table, req.params.key);
       if (!existing) return res.status(404).json({ error: 'not found' });
       const merged = { ...existing.data, ...(req.body?.data || {}) };
       const record = await disco.setRecord(req.params.table, req.params.key, merged);
